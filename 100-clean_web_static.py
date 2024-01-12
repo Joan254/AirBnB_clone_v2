@@ -17,35 +17,13 @@ def do_clean(number=0):
     if number is 2, keep the most recent, and second most recent versions
     of the archive
     """
-    try:
-        number = int(number)
-        if number < 0:
-            return False
+    number = int(number)
 
-        # Get all archives locally
-        local_archives = sorted(local('ls -1 versions', capture=True).split())
+    if number == 0:
+        number = 2
+    else:
+        number += 1
 
-        # Keep the most recent 'number' archives locally
-        local_to_keep = local_archives[-number:]
-        local_to_delete = local_archives[:-number]
-
-        # Delete unnecessary archives in versions folder locally
-        local('cd versions && sudo rm -f {}'.format(' '.join(local_to_delete)))
-
-        # Delete unnecessary archives in /data/web_static/releases
-        # folder remotely
-        for server in env.hosts:
-            with settings(host_string=server):
-                # Get all archives remotely
-                remote_archives = sorted(run(
-                    'ls -1 /data/web_static/releases').split())
-                # Keep the most recent 'number' archives remotely
-                remote_to_keep = remote_archives[-number:]
-                remote_to_delete = remote_archives[:-number]
-                # Delete unnecessary archives in /data/web_static/releases
-                # folder remotely
-                run('cd /data/web_static/releases && sudo rm -rf {}'.format(
-                    ' '.join(remote_to_delete)))
-        return True
-    except Exception:
-        return False
+    local('cd versions ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(number))
+    path = '/data/web_static/releases'
+    run('cd {} ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(path, number)) 
