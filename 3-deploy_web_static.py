@@ -2,8 +2,8 @@
 """Creates and distributes an archive to web servers
 using the function deploy"""
 from fabric.api import *
-import os.path
-from datetime import datetime
+from os.path import exists
+from time import strftime
 
 env.hosts = ["54.144.149.14", "18.209.179.185"]
 env.user = "ubuntu"
@@ -13,60 +13,50 @@ env.key_filename = '~/.ssh/0-RSA_key'
 def do_pack():
     """Generates a .tgz archive from the contents of the web_static folder
     of the AirBnB Clone repo"""
-    dt = datetime.utcnow()
-    file = "versions/web_static_{}{}{}{}{}{}.tgz".format(dt.year,
-                                                         dt.month,
-                                                         dt.day,
-                                                         dt.hour,
-                                                         dt.minute,
-                                                         dt.second)
-    if os.path.isdir("versions") is False:
-        if local("mkdir -p versions").failed is True:
-            return None
-    if local("tar -cvzf {} web_static".format(file)).failed is True:
+    try:
+        local("mkdir -p versions")
+        local("tar -cvzf versions/web_static_{}.tgz web_static/".format(
+            strftime("%Y%m%d%H%M%S")))
+        return ("versions/web_static_{}.tgz".format(
+            strftime("%Y%m%d%H%M%S")))
+    except Exception as e:
         return None
-    return file
 
 
 def do_deploy(archive_path):
-    """Distributes an archive to a web server.
+    """Distributes an archive to web servers"""
 
-    Args:
-        archive_path (str): The path of the archive to distribute.
-    Returns:
-        If the file doesn't exist at archive_path or an error occurs - False.
-        Otherwise - True.
-    """
-    if os.path.isfile(archive_path) is False:
+    # Check if the archive file exists
+    if not exists(archive_path):
         return False
-    file = archive_path.split("/")[-1]
-    name = file.split(".")[0]
+    try:
+        # Upload the archive to /tmp/ on the web server
+        put(archive_path, "/tmp/")
 
-    if put(archive_path, "/tmp/{}".format(file)).failed is True:
+        # Extract the archive to /data/web_static/releases/
+        # <filename without extension>/
+        archive_file = archive_path[9:]
+        release_folder = "/data/web_static/releases/" + archive_file[:-4]
+        run("sudo mkdir -p {}".format(release_folder))
+        run("sudo tar -xzf /tmp/{} -C {}".format(archive_file, release_folder))
+
+        # Delete the archive from the web server
+        run("sudo rm /tmp/{}".format(archive_file))
+
+        # Move the contents to the proper location
+        run("sudo mv {}/web_static/* {}".format(
+            release_folder, release_folder))
+
+        # Remove the symbolic link /data/web_static/current
+        run("sudo rm -rf /data/web_static/current")
+
+        # Create a new the symbolic link /data/web_static/current
+        run("sudo ln -s {} /data/web_static/current".format(release_folder))
+
+        print("New version deployed!")
+        return True
+    except Exception as e:
         return False
-    if run("rm -rf /data/web_static/releases/{}/".
-           format(name)).failed is True:
-        return False
-    if run("mkdir -p /data/web_static/releases/{}/".
-           format(name)).failed is True:
-        return False
-    if run("tar -xzf /tmp/{} -C /data/web_static/releases/{}/".
-           format(file, name)).failed is True:
-        return False
-    if run("rm /tmp/{}".format(file)).failed is True:
-        return False
-    if run("mv /data/web_static/releases/{}/web_static/* "
-           "/data/web_static/releases/{}/".format(name, name)).failed is True:
-        return False
-    if run("rm -rf /data/web_static/releases/{}/web_static".
-           format(name)).failed is True:
-        return False
-    if run("rm -rf /data/web_static/current").failed is True:
-        return False
-    if run("ln -s /data/web_static/releases/{}/ /data/web_static/current".
-           format(name)).failed is True:
-        return False
-    return True
 
 
 def deploy():
@@ -74,4 +64,4 @@ def deploy():
     file = do_pack()
     if file is None:
         return False
-    return do_deploy(file) 
+    return do_deploy(file)
