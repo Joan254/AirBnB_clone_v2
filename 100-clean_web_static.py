@@ -19,6 +19,7 @@ def do_clean(number=0):
     """
     number = 1 if int(number) == 0 else int(number)
 
-    local('cd versions ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(number))
+    local('cd versions ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(
+        number))
     path = '/data/web_static/releases'
-    run('cd {} ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(path, number)) 
+    run('cd {} ; ls -t | tail -n +{} | sudo xargs rm -rf'.format(path, number))
